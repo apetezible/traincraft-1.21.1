@@ -13,7 +13,9 @@ The new mod ID is `traincraft`. The legacy mod used `tc`; compatibility with leg
 Requirements:
 
 - Minecraft 1.21.1
-- Java 21 or newer
+- Java 21
+- Fabric 0.102.0+1.21.1
+- Fabric API 0.116.7+1.21.1
 
 Build the mod with:
 
