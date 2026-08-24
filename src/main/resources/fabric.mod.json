@@ -18,6 +18,9 @@
 	"entrypoints": {
 		"main": [
 			"com.eternalblueflame.traincraft.Traincraft"
+		],
+		"client": [
+			"com.eternalblueflame.traincraft.TraincraftClient"
 		]
 	},
 	"depends": {

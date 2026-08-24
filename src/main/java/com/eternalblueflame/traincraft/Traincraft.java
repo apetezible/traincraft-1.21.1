@@ -10,6 +10,8 @@ public class Traincraft implements ModInitializer {
 
     @Override
     public void onInitialize() {
+        TraincraftEntities.register();
+        TraincraftItems.register();
         LOGGER.info("Initializing Traincraft 1.21.1...");
     }
 }
