@@ -1,0 +1,29 @@
+{
+	"schemaVersion": 1,
+	"id": "traincraft",
+	"version": "${version}",
+	"name": "Traincraft",
+	"description": "Traincraft ported to Minecraft 1.21.1",
+	"authors": [
+		"EternalBlueFlame",
+		"PalatablePainting"
+	],
+	"contact": {
+		"homepage": "https://fabricmc.net/",
+		"sources": "https://github.com/FabricMC/fabric-example-mod"
+	},
+	"license": "CC0-1.0",
+	"icon": "assets/traincraft/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"com.eternalblueflame.traincraft.Traincraft"
+		]
+	},
+	"depends": {
+		"fabricloader": ">=0.19.3",
+		"minecraft": "~1.21.1",
+		"java": ">=21",
+		"fabric-api": "*"
+	}
+}
