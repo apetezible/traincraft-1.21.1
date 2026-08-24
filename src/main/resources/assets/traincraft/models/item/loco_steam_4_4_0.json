@@ -1,6 +1,6 @@
 {
   "parent": "minecraft:item/generated",
   "textures": {
-    "layer0": "traincraft:icon"
+    "layer0": "traincraft:trains/4-4-0-loco_red"
   }
 }

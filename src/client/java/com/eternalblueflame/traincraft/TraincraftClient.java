@@ -1,16 +1,21 @@
 package com.eternalblueflame.traincraft;
 
 import net.fabricmc.api.ClientModInitializer;
+import com.eternalblueflame.traincraft.model.ModelLocoSteam4_4_0;
+import com.eternalblueflame.traincraft.render.RenderLocoSteam4_4_0;
+import net.fabricmc.fabric.api.client.rendereregistry.v1.EntityModelLayerRegistry;
 import net.fabricmc.fabric.api.client.rendereregistry.v1.EntityRendererRegistry;
-import net.minecraft.client.model.geom.ModelLayers;
-import net.minecraft.client.renderer.entity.MinecartRenderer;
 
 public class TraincraftClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
+        EntityModelLayerRegistry.registerModelLayer(
+            RenderLocoSteam4_4_0.MODEL_LAYER,
+            ModelLocoSteam4_4_0::createBodyLayer
+        );
         EntityRendererRegistry.INSTANCE.register(
                 TraincraftEntities.LOCO_STEAM_4_4_0,
-                context -> new MinecartRenderer<>(context, ModelLayers.MINECART)
+            RenderLocoSteam4_4_0::new
         );
     }
 }
