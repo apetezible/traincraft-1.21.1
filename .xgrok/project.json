@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "setup": "integrated",
+  "languages": [
+    "Java/Kotlin"
+  ],
+  "stacks": [
+    "Gradle"
+  ],
+  "markers": [
+    "build.gradle"
+  ],
+  "createdAt": "2026-08-25T19:30:12.090Z",
+  "tool": "xgrok"
+}

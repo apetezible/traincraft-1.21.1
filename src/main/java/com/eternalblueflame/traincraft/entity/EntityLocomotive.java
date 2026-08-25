@@ -1,29 +1,60 @@
 package com.eternalblueflame.traincraft.entity;
 
+import com.eternalblueflame.traincraft.inventory.LocomotiveInventory;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
+import net.minecraft.tags.ItemTags;
+import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
-import net.minecraft.util.Mth;
 
 public abstract class EntityLocomotive extends EntityRollingStock {
     private static final EntityDataAccessor<Boolean> ENGINE_ON = SynchedEntityData.defineId(
             EntityLocomotive.class, EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<Float> THROTTLE = SynchedEntityData.defineId(
             EntityLocomotive.class, EntityDataSerializers.FLOAT);
+    private static final EntityDataAccessor<Integer> FUEL = SynchedEntityData.defineId(
+            EntityLocomotive.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Integer> OVERHEAT_LEVEL = SynchedEntityData.defineId(
+            EntityLocomotive.class, EntityDataSerializers.INT);
 
     protected double accelerate = 0.65D;
     protected double brake = 0.95D;
 
+    /** Burn time added per coal item, matching vanilla furnace values. */
+    public static final int FUEL_PER_COAL = 1600;
+
+    /** Full bunker of fuel in ticks (~20 minutes at one tick per running tick). */
+    public static final int MAX_FUEL_TICKS = 24000;
+
+    /** Ticks of overheating before the locomotive reaches critical temperature. */
+    public static final int OVERHEAT_TIME = 60;
+
+    /** Hard cap for the overheat gauge so it stops just past the red line. */
+    public static final int OVERHEAT_MAX = OVERHEAT_TIME + 30;
+
+    /** How much throttle changes per tick while a key is held (~2.5s 0 to 100% at 0.02). */
+    private static final float THROTTLE_STEP = 0.02F;
+
+    /**
+     * After throttle hits 0 while a direction key is still held, ignore further
+     * input until the key is released so you cannot cross through 0 into reverse/forward.
+     */
+    private boolean throttleNeutralLatch = false;
+
+    private final LocomotiveInventory inventory;
+
     protected EntityLocomotive(EntityType<? extends EntityLocomotive> entityType, Level level) {
         super(entityType, level);
+        this.inventory = new LocomotiveInventory(inventorySize(), () -> 0);
     }
 
     @Override
@@ -31,6 +62,17 @@ public abstract class EntityLocomotive extends EntityRollingStock {
         super.defineSynchedData(builder);
         builder.define(ENGINE_ON, true);
         builder.define(THROTTLE, 0.0F);
+        builder.define(FUEL, MAX_FUEL_TICKS);
+        builder.define(OVERHEAT_LEVEL, 0);
+    }
+
+    /** Number of working slots: fuel only by default, steam adds a water slot. */
+    protected int inventorySize() {
+        return 1;
+    }
+
+    public LocomotiveInventory getInventory() {
+        return inventory;
     }
 
     @Override
@@ -47,20 +89,9 @@ public abstract class EntityLocomotive extends EntityRollingStock {
         return super.interact(player, hand);
     }
 
-    /** How much throttle changes per tick while a key is held (~2.5s 0→100% at 0.02). */
-    private static final float THROTTLE_STEP = 0.02F;
-
-    /**
-     * After throttle hits 0 while a direction key is still held, ignore further
-     * input until the key is released so you cannot cross through 0 into reverse/forward.
-     */
-    private boolean throttleNeutralLatch = false;
-
-
-
     @Override
-public void tick() {
-    super.tick();
+    public void tick() {
+        super.tick();
         if (level().isClientSide()) {
             return;
         }
@@ -69,10 +100,15 @@ public void tick() {
         float input = rider == null ? 0.0F : Mth.clamp(rider.zza, -1.0F, 1.0F);
         updateThrottleLever(input);
 
+        if (!isFuelled()) {
+            pullFuelFromInventory();
+        }
+
         float throttle = getThrottle();
 
-        if (!isEngineOn() || throttle == 0.0F) {
+        if (!isEngineOn() || throttle == 0.0F || !isFuelled()) {
             setDeltaMovement(getDeltaMovement().scale(brake));
+            coolDownOverheat();
             return;
         }
 
@@ -87,6 +123,18 @@ public void tick() {
             movement = new Vec3(movement.x * scale, movement.y, movement.z * scale);
         }
         setDeltaMovement(movement);
+
+        consumeFuel();
+        updateOverheat();
+    }
+
+    /** Furnace-style stoking: pull the next coal from the firebox slot when empty. */
+    private void pullFuelFromInventory() {
+        ItemStack fuelSlot = inventory.getItem(0);
+        if (!fuelSlot.isEmpty() && fuelSlot.is(ItemTags.COALS)) {
+            fuelSlot.shrink(1);
+            addFuel(FUEL_PER_COAL);
+        }
     }
 
     /**
@@ -151,11 +199,82 @@ public void tick() {
         return 0.4D;
     }
 
+    // --- Fuel & heat state -------------------------------------------------
+
+    public boolean isFuelled() {
+        return getFuel() > 0;
+    }
+
+    public int getFuel() {
+        return entityData.get(FUEL);
+    }
+
+    public void addFuel(int ticks) {
+        setFuel(Math.min(MAX_FUEL_TICKS, getFuel() + ticks));
+    }
+
+    private void setFuel(int fuel) {
+        entityData.set(FUEL, Math.max(0, fuel));
+    }
+
+    private void consumeFuel() {
+        setFuel(getFuel() - 1);
+    }
+
+    /** Locomotives run hot by default; subclasses may opt out. */
+    public boolean canOverheat() {
+        return true;
+    }
+
+    public int getOverheatLevel() {
+        return entityData.get(OVERHEAT_LEVEL);
+    }
+
+    /** Subclasses return true when running without coolant (e.g. a dry steam loco). */
+    protected boolean lacksCoolant() {
+        return false;
+    }
+
+    private void updateOverheat() {
+        int level = getOverheatLevel();
+        level = lacksCoolant() ? level + 1 : level - 1;
+        entityData.set(OVERHEAT_LEVEL, Mth.clamp(level, 0, OVERHEAT_MAX));
+    }
+
+    private void coolDownOverheat() {
+        entityData.set(OVERHEAT_LEVEL, Math.max(0, getOverheatLevel() - 1));
+    }
+
+    /** Human-readable operating state, shown on the HUD and in GUIs. */
+    public String getState() {
+        if (canOverheat() && getOverheatLevel() >= OVERHEAT_TIME) {
+            return "Overheated";
+        }
+        if (!isEngineOn()) {
+            return "Off";
+        }
+        if (!isFuelled()) {
+            return "Out of fuel";
+        }
+        if (Math.abs(getThrottle()) > 0.01F) {
+            return "Running";
+        }
+        return "Stopped";
+    }
+
+    /** Fuel scaled to an arbitrary bar length for gauges. */
+    public int getFuelDiv(int scale) {
+        return getFuel() * scale / MAX_FUEL_TICKS;
+    }
+
     @Override
     protected void addAdditionalSaveData(CompoundTag tag) {
         super.addAdditionalSaveData(tag);
         tag.putBoolean("EngineOn", isEngineOn());
         tag.putFloat("Throttle", getThrottle());
+        tag.putInt("Fuel", getFuel());
+        tag.putInt("Overheat", getOverheatLevel());
+        tag.put("Inventory", inventory.save(new CompoundTag()));
     }
 
     @Override
@@ -163,5 +282,10 @@ public void tick() {
         super.readAdditionalSaveData(tag);
         setEngineOn(!tag.contains("EngineOn") || tag.getBoolean("EngineOn"));
         setThrottle(tag.getFloat("Throttle"));
+        setFuel(tag.contains("Fuel") ? tag.getInt("Fuel") : MAX_FUEL_TICKS);
+        entityData.set(OVERHEAT_LEVEL, Mth.clamp(tag.getInt("Overheat"), 0, OVERHEAT_MAX));
+        if (tag.contains("Inventory")) {
+            inventory.load(tag.getCompound("Inventory"));
+        }
     }
 }
