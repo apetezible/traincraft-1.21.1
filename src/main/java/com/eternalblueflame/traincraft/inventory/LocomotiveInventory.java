@@ -1,5 +1,6 @@
 package com.eternalblueflame.traincraft.inventory;
 
+import net.minecraft.core.HolderLookup;
 import net.minecraft.core.NonNullList;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.Container;
@@ -7,18 +8,14 @@ import net.minecraft.world.ContainerHelper;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 
-import java.util.function.IntSupplier;
-
 /**
- * A tiny inventory attached to a locomotive, holding its working slots:
- * slot 0 is always the fuel/firebox slot, and steam locomotives add a
- * second slot for water containers.
+ * Working slots for a locomotive: 0 = fuel, steam adds 1 = water.
  */
 public final class LocomotiveInventory implements Container {
     private final NonNullList<ItemStack> items;
-    private final IntSupplier markDirty;
+    private final Runnable markDirty;
 
-    public LocomotiveInventory(int size, IntSupplier markDirty) {
+    public LocomotiveInventory(int size, Runnable markDirty) {
         this.items = NonNullList.withSize(size, ItemStack.EMPTY);
         this.markDirty = markDirty;
     }
@@ -76,11 +73,6 @@ public final class LocomotiveInventory implements Container {
     }
 
     @Override
-    public int getMaxStackSize() {
-        return 64;
-    }
-
-    @Override
     public void setChanged() {
         markDirty.run();
     }
@@ -96,13 +88,14 @@ public final class LocomotiveInventory implements Container {
         markDirty.run();
     }
 
-    public CompoundTag save(CompoundTag tag) {
-        ContainerHelper.saveAllItems(tag, items, false);
+    /** 1.21: ItemStack NBT needs a registry provider. */
+    public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
+        ContainerHelper.saveAllItems(tag, items, false, registries);
         return tag;
     }
 
-    public void load(CompoundTag tag) {
+    public void load(CompoundTag tag, HolderLookup.Provider registries) {
         items.clear();
-        ContainerHelper.loadAllItems(tag, items);
+        ContainerHelper.loadAllItems(tag, items, registries);
     }
 }

@@ -63,7 +63,7 @@ public final class HudLocomotive implements HudRenderCallback {
             renderOverheatBar(graphics, top, loco);
         }
 
-        renderSpeedometer(graphics, top, loco);
+        renderThrottleGauge(graphics, top, loco);
         renderFuelBar(graphics, top, loco);
         renderText(graphics, font, top, loco, steam);
 
@@ -91,10 +91,10 @@ public final class HudLocomotive implements HudRenderCallback {
         graphics.blit(STEAM_HUD_TEXTURE, 56, top + 17, 176, 169 + cover, 5, 49 - cover);
     }
 
-    /** Steam-style horizontal speedometer bar that rises with speed. */
-    private void renderSpeedometer(GuiGraphics graphics, int top, EntityLocomotive loco) {
-        float speedKmh = speedKilometersPerHour(loco);
-        int rise = scaleGauge(Math.round(Math.abs(speedKmh)), (int) SPEED_GAUGE_MAX, 49);
+    /** Throttle magnitude: full at ±100%, empty at 0. Direction is only in text if you add it. */
+    private void renderThrottleGauge(GuiGraphics graphics, int top, EntityLocomotive loco) {
+        // |throttle| in 0..100 → 0..49 px rise
+        int rise = scaleGauge(Math.round(Math.abs(loco.getThrottle()) * 100.0F), 100, 49);
         graphics.blit(STEAM_HUD_TEXTURE, 84, top + 57 - rise, 177, 149, 16, 8);
     }
 

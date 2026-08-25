@@ -15,6 +15,11 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
+import com.eternalblueflame.traincraft.menu.LocomotiveMenu;
+import net.minecraft.world.MenuProvider;
+import net.minecraft.world.SimpleMenuProvider;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.server.level.ServerPlayer;
 
 public abstract class EntityLocomotive extends EntityRollingStock {
     private static final EntityDataAccessor<Boolean> ENGINE_ON = SynchedEntityData.defineId(
@@ -54,7 +59,7 @@ public abstract class EntityLocomotive extends EntityRollingStock {
 
     protected EntityLocomotive(EntityType<? extends EntityLocomotive> entityType, Level level) {
         super(entityType, level);
-        this.inventory = new LocomotiveInventory(inventorySize(), () -> 0);
+        this.inventory = new LocomotiveInventory(inventorySize(), () -> {});
     }
 
     @Override
@@ -274,7 +279,7 @@ public abstract class EntityLocomotive extends EntityRollingStock {
         tag.putFloat("Throttle", getThrottle());
         tag.putInt("Fuel", getFuel());
         tag.putInt("Overheat", getOverheatLevel());
-        tag.put("Inventory", inventory.save(new CompoundTag()));
+        tag.put("Inventory", inventory.save(new CompoundTag(), level().registryAccess()));
     }
 
     @Override
@@ -285,7 +290,25 @@ public abstract class EntityLocomotive extends EntityRollingStock {
         setFuel(tag.contains("Fuel") ? tag.getInt("Fuel") : MAX_FUEL_TICKS);
         entityData.set(OVERHEAT_LEVEL, Mth.clamp(tag.getInt("Overheat"), 0, OVERHEAT_MAX));
         if (tag.contains("Inventory")) {
-            inventory.load(tag.getCompound("Inventory"));
+            inventory.load(tag.getCompound("Inventory"), level().registryAccess());
         }
+    }
+
+    /** Open the locomotive working inventory (fuel / water). Called from the R-key packet. */
+    public void openInventory(Player player) {
+        if (level().isClientSide()) {
+            return;
+        }
+        if (!(player instanceof ServerPlayer serverPlayer)) {
+            return;
+        }
+        if (player.getVehicle() != this) {
+            return;
+        }
+
+        MenuProvider provider = new SimpleMenuProvider(
+                (containerId, playerInventory, p) -> new LocomotiveMenu(containerId, playerInventory, this),
+                Component.translatable("container.traincraft.loco"));
+        serverPlayer.openMenu(provider);
     }
 }

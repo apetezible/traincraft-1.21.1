@@ -1,6 +1,7 @@
 package com.eternalblueflame.traincraft.menu;
 
 import com.eternalblueflame.traincraft.entity.EntityLocomotive;
+import com.eternalblueflame.traincraft.TraincraftMenus;
 import com.eternalblueflame.traincraft.entity.EntityLocoSteam4_4_0;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.tags.ItemTags;
@@ -27,8 +28,15 @@ public class LocomotiveMenu extends AbstractContainerMenu {
     }
 
     /** Client-side construction: resolve the locomotive from the entity id written by the server. */
-    public LocomotiveMenu(int containerId, Inventory playerInventory, RegistryFriendlyByteBuf buf) {
-        this(containerId, playerInventory, resolveLoco(playerInventory, buf));
+    public LocomotiveMenu(int containerId, Inventory playerInventory) {
+        this(containerId, playerInventory, resolveFromVehicle(playerInventory.player));
+    }
+
+    private static EntityLocomotive resolveFromVehicle(Player player) {
+        if (player.getVehicle() instanceof EntityLocomotive loco) {
+            return loco;
+        }
+        throw new IllegalStateException("Player is not riding a locomotive");
     }
 
     private static EntityLocomotive resolveLoco(Inventory playerInventory, RegistryFriendlyByteBuf buf) {
