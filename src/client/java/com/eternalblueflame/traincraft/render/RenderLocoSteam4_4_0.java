@@ -29,30 +29,22 @@ public final class RenderLocoSteam4_4_0 extends EntityRenderer<EntityLocoSteam4_
 
     @Override
     public void render(EntityLocoSteam4_4_0 locomotive, float entityYaw, float partialTick,
-                       PoseStack poseStack, MultiBufferSource buffer, int packedLight) {
+                    PoseStack poseStack, MultiBufferSource buffer, int packedLight) {
         poseStack.pushPose();
-        poseStack.translate(0.0D, 0.0D, 0.0D);
-        float visualYaw = 270.0F - entityYaw;
-        if (isNorthSouth(entityYaw)) {
-            visualYaw += 180.0F;
-        }
-        poseStack.mulPose(new Quaternionf().rotationY((float) Math.toRadians(visualYaw)));
-        poseStack.scale(1.0F, 1.0F, 1.0F);
+
+        // Model is locked to entity facing. Only a constant offset for the model's
+        // native forward axis — no north/south special cases, no per-tick flips.
+        poseStack.mulPose(new Quaternionf().rotationY(
+            (float) Math.toRadians(270.0F - entityYaw)));
+
         VertexConsumer vertexConsumer = buffer.getBuffer(RenderType.entityCutoutNoCull(TEXTURE));
         model.render(poseStack, vertexConsumer, packedLight, OverlayTexture.NO_OVERLAY);
+
         poseStack.popPose();
     }
 
     @Override
     public ResourceLocation getTextureLocation(EntityLocoSteam4_4_0 locomotive) {
         return TEXTURE;
-    }
-
-    private static boolean isNorthSouth(float entityYaw) {
-        float normalizedYaw = entityYaw % 360.0F;
-        if (normalizedYaw < 0.0F) {
-            normalizedYaw += 360.0F;
-        }
-        return Math.abs(normalizedYaw - 90.0F) < 1.0F || Math.abs(normalizedYaw - 270.0F) < 1.0F;
     }
 }

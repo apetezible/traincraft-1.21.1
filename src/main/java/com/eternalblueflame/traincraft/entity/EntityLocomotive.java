@@ -38,7 +38,9 @@ public abstract class EntityLocomotive extends EntityRollingStock {
         if (player.isShiftKeyDown()) {
             if (!level().isClientSide()) {
                 setEngineOn(!isEngineOn());
-                player.displayClientMessage(Component.literal(isEngineOn() ? "Locomotive started" : "Locomotive stopped"), true);
+                player.displayClientMessage(
+                        Component.literal(isEngineOn() ? "Locomotive started" : "Locomotive stopped"),
+                        true);
             }
             return InteractionResult.sidedSuccess(level().isClientSide());
         }
@@ -47,12 +49,17 @@ public abstract class EntityLocomotive extends EntityRollingStock {
 
     @Override
     public void tick() {
+        // Vanilla AbstractMinecart updates position along rails AND sets yaw
+        // with flipped continuity (same idea as original bogie-based facing).
         super.tick();
+
         if (level().isClientSide()) {
             return;
         }
 
-        updateFacingFromMovement();
+        // Do NOT call updateFacingFromMovement() — that fought vanilla and
+        // caused the opposite-angle snap on corners. Original Traincraft also
+        // never set body yaw from velocity; it used bogie positions instead.
 
         Player rider = getFirstPassenger() instanceof Player player ? player : null;
         float riderThrottle = rider == null ? 0.0F : Mth.clamp(rider.zza, -1.0F, 1.0F);
@@ -64,8 +71,11 @@ public abstract class EntityLocomotive extends EntityRollingStock {
             return;
         }
 
+        // Force along the facing vanilla just set (matches original: body
+        // orientation comes from the track, propulsion follows that nose).
+        // Vanilla minecart forward-ish convention: (cos(yaw), 0, sin(yaw))
         float yaw = getYRot() * ((float) Math.PI / 180.0F);
-        Vec3 forward = new Vec3(Math.cos(yaw), 0.0D, -Math.sin(yaw));
+        Vec3 forward = new Vec3(Math.cos(yaw), 0.0D, Math.sin(yaw));
         double direction = riderThrottle > 0.0F ? 1.0D : -1.0D;
         double force = accelerate * 0.01D * Math.abs(riderThrottle) * direction;
         Vec3 movement = getDeltaMovement().add(forward.scale(force));
@@ -75,15 +85,6 @@ public abstract class EntityLocomotive extends EntityRollingStock {
             movement = new Vec3(movement.x * scale, movement.y, movement.z * scale);
         }
         setDeltaMovement(movement);
-    }
-
-    private void updateFacingFromMovement() {
-        Vec3 movement = getDeltaMovement();
-        if (movement.horizontalDistanceSqr() < 0.000001D) {
-            return;
-        }
-
-        setYRot(Mth.wrapDegrees((float) Math.toDegrees(Math.atan2(-movement.z, movement.x))));
     }
 
     public boolean isEngineOn() {

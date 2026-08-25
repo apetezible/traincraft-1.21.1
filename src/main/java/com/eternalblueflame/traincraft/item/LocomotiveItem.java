@@ -64,20 +64,32 @@ public class LocomotiveItem extends Item {
             case SOUTH_WEST -> 135.0F;
             case NORTH_WEST -> 225.0F;
             case NORTH_EAST -> 315.0F;
-            default -> 0.0F;
+            default -> 0.0F; // EAST_WEST / ascending E-W
         };
 
         if (context.getPlayer() == null) {
             return railYaw;
         }
 
-        double targetX = context.getClickedPos().getX() + 0.5D - context.getPlayer().getX();
-        double targetZ = context.getClickedPos().getZ() + 0.5D - context.getPlayer().getZ();
-        double yawRadians = Math.toRadians(railYaw);
-        double forwardX = Math.cos(yawRadians);
-        double forwardZ = -Math.sin(yawRadians);
-        double projection = targetX * forwardX + targetZ * forwardZ;
+        // Two possible headings along this rail
+        float optionA = railYaw;
+        float optionB = railYaw + 180.0F;
 
-        return projection >= 0.0D ? railYaw : railYaw + 180.0F;
+        // Entity forward convention (matches EntityLocomotive): (cos(yaw), sin(yaw))
+        double aX = Math.cos(Math.toRadians(optionA));
+        double aZ = Math.sin(Math.toRadians(optionA));
+        double bX = Math.cos(Math.toRadians(optionB));
+        double bZ = Math.sin(Math.toRadians(optionB));
+
+        // Player look direction (vanilla): (-sin(yaw), cos(yaw))
+        float playerYawRad = context.getPlayer().getYRot() * ((float) Math.PI / 180.0F);
+        double lookX = -Math.sin(playerYawRad);
+        double lookZ = Math.cos(playerYawRad);
+
+        // Pick the rail heading closest to where the player is looking
+        double dotA = lookX * aX + lookZ * aZ;
+        double dotB = lookX * bX + lookZ * bZ;
+
+        return dotA >= dotB ? optionA : optionB;
     }
 }
