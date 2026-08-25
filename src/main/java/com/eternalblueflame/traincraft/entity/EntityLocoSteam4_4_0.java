@@ -5,7 +5,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.Level;
 
-public class EntityLocoSteam4_4_0 extends EntityRollingStock {
+public class EntityLocoSteam4_4_0 extends EntityLocomotive {
     public EntityLocoSteam4_4_0(EntityType<? extends EntityLocoSteam4_4_0> entityType, Level level) {
         super(entityType, level);
     }
