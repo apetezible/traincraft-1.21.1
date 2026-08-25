@@ -47,37 +47,39 @@ public abstract class EntityLocomotive extends EntityRollingStock {
         return super.interact(player, hand);
     }
 
-    @Override
-    public void tick() {
-        // Vanilla AbstractMinecart updates position along rails AND sets yaw
-        // with flipped continuity (same idea as original bogie-based facing).
-        super.tick();
+    /** How much throttle changes per tick while a key is held (~2.5s 0→100% at 0.02). */
+    private static final float THROTTLE_STEP = 0.02F;
 
+    /**
+     * After throttle hits 0 while a direction key is still held, ignore further
+     * input until the key is released so you cannot cross through 0 into reverse/forward.
+     */
+    private boolean throttleNeutralLatch = false;
+
+
+
+    @Override
+public void tick() {
+    super.tick();
         if (level().isClientSide()) {
             return;
         }
 
-        // Do NOT call updateFacingFromMovement() — that fought vanilla and
-        // caused the opposite-angle snap on corners. Original Traincraft also
-        // never set body yaw from velocity; it used bogie positions instead.
-
         Player rider = getFirstPassenger() instanceof Player player ? player : null;
-        float riderThrottle = rider == null ? 0.0F : Mth.clamp(rider.zza, -1.0F, 1.0F);
-        setThrottle(riderThrottle);
+        float input = rider == null ? 0.0F : Mth.clamp(rider.zza, -1.0F, 1.0F);
+        updateThrottleLever(input);
 
-        if (!isEngineOn() || riderThrottle == 0.0F) {
-            setThrottle(0.0F);
+        float throttle = getThrottle();
+
+        if (!isEngineOn() || throttle == 0.0F) {
             setDeltaMovement(getDeltaMovement().scale(brake));
             return;
         }
 
-        // Force along the facing vanilla just set (matches original: body
-        // orientation comes from the track, propulsion follows that nose).
-        // Vanilla minecart forward-ish convention: (cos(yaw), 0, sin(yaw))
         float yaw = getYRot() * ((float) Math.PI / 180.0F);
         Vec3 forward = new Vec3(Math.cos(yaw), 0.0D, Math.sin(yaw));
-        double direction = riderThrottle > 0.0F ? 1.0D : -1.0D;
-        double force = accelerate * 0.01D * Math.abs(riderThrottle) * direction;
+        double direction = throttle > 0.0F ? 1.0D : -1.0D;
+        double force = accelerate * 0.01D * Math.abs(throttle) * direction;
         Vec3 movement = getDeltaMovement().add(forward.scale(force));
         double horizontalSpeed = Math.sqrt(movement.x * movement.x + movement.z * movement.z);
         if (horizontalSpeed > getLocomotiveMaxSpeed()) {
@@ -85,6 +87,48 @@ public abstract class EntityLocomotive extends EntityRollingStock {
             movement = new Vec3(movement.x * scale, movement.y, movement.z * scale);
         }
         setDeltaMovement(movement);
+    }
+
+    /**
+     * Lever-style throttle:
+     * - Hold W: increase toward +1 (or toward 0 if currently in reverse)
+     * - Hold S: decrease toward -1 (or toward 0 if currently in forward)
+     * - Release: hold current value
+     * - Crossing 0 requires release then press the new direction
+     */
+    private void updateThrottleLever(float input) {
+        float throttle = getThrottle();
+
+        if (input == 0.0F) {
+            throttleNeutralLatch = false;
+            return;
+        }
+
+        if (throttleNeutralLatch) {
+            return;
+        }
+
+        if (input > 0.0F) {
+            if (throttle < 0.0F) {
+                throttle = Math.min(0.0F, throttle + THROTTLE_STEP);
+                if (throttle == 0.0F) {
+                    throttleNeutralLatch = true;
+                }
+            } else {
+                throttle = Math.min(1.0F, throttle + THROTTLE_STEP);
+            }
+        } else {
+            if (throttle > 0.0F) {
+                throttle = Math.max(0.0F, throttle - THROTTLE_STEP);
+                if (throttle == 0.0F) {
+                    throttleNeutralLatch = true;
+                }
+            } else {
+                throttle = Math.max(-1.0F, throttle - THROTTLE_STEP);
+            }
+        }
+
+        setThrottle(throttle);
     }
 
     public boolean isEngineOn() {
