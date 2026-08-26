@@ -19,10 +19,10 @@ public class Traincraft implements ModInitializer {
         TraincraftMenus.init();
 
         PayloadTypeRegistry.playC2S().register(
-                OpenLocoInventoryPayload.ID,
-                OpenLocoInventoryPayload.CODEC);
+                OpenLocoInventoryPayload.TYPE,
+                OpenLocoInventoryPayload.STREAM_CODEC);
 
-        ServerPlayNetworking.registerGlobalReceiver(OpenLocoInventoryPayload.ID, (payload, context) -> {
+        ServerPlayNetworking.registerGlobalReceiver(OpenLocoInventoryPayload.TYPE, (payload, context) -> {
             context.server().execute(() -> {
                 var player = context.player();
                 if (player.getVehicle() instanceof EntityLocomotive loco) {
