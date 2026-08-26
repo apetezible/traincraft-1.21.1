@@ -15,6 +15,9 @@ public class LocomotiveScreen extends AbstractContainerScreen<LocomotiveMenu> {
                     "textures/gui/gui_loco_steam.png"
             );
 
+    private static final int TEXTURE_WIDTH = 256;
+    private static final int TEXTURE_HEIGHT = 256;
+
     public LocomotiveScreen(
             LocomotiveMenu menu,
             Inventory playerInventory,
@@ -22,9 +25,8 @@ public class LocomotiveScreen extends AbstractContainerScreen<LocomotiveMenu> {
     ) {
         super(menu, playerInventory, title);
 
-        // These are the dimensions of the legacy Traincraft GUI.
-        this.imageWidth = 256;
-        this.imageHeight = 256;
+        this.imageWidth = 176;
+        this.imageHeight = 166;
     }
 
     @Override
@@ -34,8 +36,8 @@ public class LocomotiveScreen extends AbstractContainerScreen<LocomotiveMenu> {
             int mouseX,
             int mouseY
     ) {
-        int x = (this.width - this.imageWidth) / 2;
-        int y = (this.height - this.imageHeight) / 2;
+        int x = this.leftPos;
+        int y = this.topPos;
 
         guiGraphics.blit(
                 TEXTURE,
@@ -45,8 +47,8 @@ public class LocomotiveScreen extends AbstractContainerScreen<LocomotiveMenu> {
                 0,
                 this.imageWidth,
                 this.imageHeight,
-                this.imageWidth,
-                this.imageHeight
+                TEXTURE_WIDTH,
+                TEXTURE_HEIGHT
         );
     }
 }
