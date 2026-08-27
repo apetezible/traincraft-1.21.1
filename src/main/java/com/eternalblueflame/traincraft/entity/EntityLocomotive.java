@@ -294,7 +294,11 @@ public abstract class EntityLocomotive extends EntityRollingStock {
 
     @Override
     public Vec3 getPassengerRidingPosition(Entity passenger) {
-        return position().add(0.0D, 1.0D, 1.1D);
+        Vec3 seatOffset = new Vec3(-1.1D, 0.8D, 0.0D);
+        double yaw = Math.toRadians(getYRot());
+        double offsetX = seatOffset.x * Math.cos(yaw) - seatOffset.z * Math.sin(yaw);
+        double offsetZ = seatOffset.x * Math.sin(yaw) + seatOffset.z * Math.cos(yaw);
+        return position().add(offsetX, seatOffset.y, offsetZ);
     }
 
     /** The legacy gauge reserves 30 points above the nominal heat scale. */
