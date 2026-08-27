@@ -1,6 +1,10 @@
 package com.eternalblueflame.traincraft.entity;
 
 import com.eternalblueflame.traincraft.TraincraftItems;
+import com.eternalblueflame.traincraft.locomotive.LocomotiveDefinition;
+import com.eternalblueflame.traincraft.locomotive.fuel.FuelSystemConfiguration;
+import com.eternalblueflame.traincraft.locomotive.fuel.SolidFuelSystem;
+import com.eternalblueflame.traincraft.locomotive.propulsion.SteamPropulsionDefinition;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
@@ -12,11 +16,18 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 
 public class EntityLocoSteam4_4_0 extends EntityLocomotive {
+    private static final LocomotiveDefinition DEFINITION = new LocomotiveDefinition(
+            "steam_4_4_0",
+            SteamPropulsionDefinition.INSTANCE,
+            new SolidFuelSystem(),
+            new FuelSystemConfiguration(20_000, 5_000, 0, 1)
+    );
+
     private static final EntityDataAccessor<Integer> WATER = SynchedEntityData.defineId(
             EntityLocoSteam4_4_0.class, EntityDataSerializers.INT);
 
-    /** Boiler water capacity in milli-buckets, mirroring the legacy tender tank scale. */
-    public static final int WATER_CAPACITY = 2000;
+    /** Boiler water capacity in milli-buckets, matching the legacy 4-4-0. */
+    public static final int WATER_CAPACITY = DEFINITION.getFuelConfiguration().waterCapacity();
 
     /** Water added per drained water bucket. */
     public static final int WATER_PER_BUCKET = 1000;
@@ -31,14 +42,45 @@ public class EntityLocoSteam4_4_0 extends EntityLocomotive {
     }
 
     @Override
+    public LocomotiveDefinition getDefinition() {
+        return DEFINITION;
+    }
+
+    @Override
+    public double transportTopSpeed() {
+        return 50.0D;
+    }
+
+    @Override
+    public double transportMetricHorsePower() {
+        return 400.0D;
+    }
+
+    @Override
+    public double getSpecAccel() {
+        return 0.65D;
+    }
+
+    @Override
+    public double getSpecBrake() {
+        return 0.95D;
+    }
+
+    @Override
+    public int getOverheatTime() {
+        return 190;
+    }
+
+    @Override
     protected void defineSynchedData(SynchedEntityData.Builder builder) {
         super.defineSynchedData(builder);
-        builder.define(WATER, WATER_CAPACITY);
+        // The boiler must be filled by the player; it does not spawn full.
+        builder.define(WATER, 0);
     }
 
     @Override
     protected int inventorySize() {
-        return 2; // slot 0: fuel, slot 1: water containers
+        return 11; // fuel, water containers, then the 3 x 3 cargo grid
     }
 
     @Override
@@ -54,7 +96,8 @@ public class EntityLocoSteam4_4_0 extends EntityLocomotive {
     /** Pours any water bucket sitting in the liquid slot into the boiler. */
     private void drainWaterBucket() {
         var inventory = getInventory();
-        ItemStack slot = inventory.getItem(1);
+        int waterSlot = getDefinition().getFuelConfiguration().waterSlot();
+        ItemStack slot = inventory.getItem(waterSlot);
         if (!slot.is(Items.WATER_BUCKET)) {
             return;
         }
@@ -62,7 +105,7 @@ public class EntityLocoSteam4_4_0 extends EntityLocomotive {
             return;
         }
         setWater(Math.min(WATER_CAPACITY, getWater() + WATER_PER_BUCKET));
-        inventory.setItem(1, new ItemStack(Items.BUCKET));
+        inventory.setItem(waterSlot, new ItemStack(Items.BUCKET));
     }
 
     private void consumeBoilerWater() {
@@ -91,6 +134,11 @@ public class EntityLocoSteam4_4_0 extends EntityLocomotive {
     }
 
     @Override
+    protected boolean hasEffectiveCoolant() {
+        return getWater() > WATER_CAPACITY / 2;
+    }
+
+    @Override
     protected Item getDropItem() {
         return TraincraftItems.LOCO_STEAM_4_4_0;
     }
@@ -109,6 +157,6 @@ public class EntityLocoSteam4_4_0 extends EntityLocomotive {
     @Override
     protected void readAdditionalSaveData(CompoundTag tag) {
         super.readAdditionalSaveData(tag);
-        entityData.set(WATER, tag.contains("Water") ? tag.getInt("Water") : WATER_CAPACITY);
+        entityData.set(WATER, tag.contains("Water") ? tag.getInt("Water") : 0);
     }
 }

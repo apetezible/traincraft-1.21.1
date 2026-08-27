@@ -1,19 +1,22 @@
 package com.eternalblueflame.traincraft.entity;
 
 import com.eternalblueflame.traincraft.inventory.LocomotiveInventory;
+import com.eternalblueflame.traincraft.locomotive.LocomotiveDefinition;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
-import net.minecraft.tags.ItemTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.Containers;
 import net.minecraft.world.phys.Vec3;
 import com.eternalblueflame.traincraft.menu.LocomotiveMenu;
 import net.minecraft.world.MenuProvider;
@@ -31,20 +34,9 @@ public abstract class EntityLocomotive extends EntityRollingStock {
     private static final EntityDataAccessor<Integer> OVERHEAT_LEVEL = SynchedEntityData.defineId(
             EntityLocomotive.class, EntityDataSerializers.INT);
 
-    protected double accelerate = 0.65D;
-    protected double brake = 0.95D;
-
-    /** Burn time added per coal item, matching vanilla furnace values. */
-    public static final int FUEL_PER_COAL = 1600;
-
-    /** Full bunker of fuel in ticks (~20 minutes at one tick per running tick). */
-    public static final int MAX_FUEL_TICKS = 24000;
-
-    /** Ticks of overheating before the locomotive reaches critical temperature. */
-    public static final int OVERHEAT_TIME = 60;
-
-    /** Hard cap for the overheat gauge so it stops just past the red line. */
-    public static final int OVERHEAT_MAX = OVERHEAT_TIME + 30;
+    /** The legacy 4-4-0's 50 km/h profile maps to the current safe 0.4 B/t cap. */
+    private static final double REFERENCE_TOP_SPEED_KPH = 50.0D;
+    private static final double REFERENCE_MAX_SPEED_BLOCKS_PER_TICK = 0.4D;
 
     /** How much throttle changes per tick while a key is held (~2.5s 0 to 100% at 0.02). */
     private static final float THROTTLE_STEP = 0.02F;
@@ -54,6 +46,8 @@ public abstract class EntityLocomotive extends EntityRollingStock {
      * input until the key is released so you cannot cross through 0 into reverse/forward.
      */
     private boolean throttleNeutralLatch = false;
+
+    private boolean inventoryDropped = false;
 
     private final LocomotiveInventory inventory;
 
@@ -67,7 +61,8 @@ public abstract class EntityLocomotive extends EntityRollingStock {
         super.defineSynchedData(builder);
         builder.define(ENGINE_ON, true);
         builder.define(THROTTLE, 0.0F);
-        builder.define(FUEL, MAX_FUEL_TICKS);
+        // A newly placed locomotive starts cold and unstocked, like a furnace.
+        builder.define(FUEL, 0);
         builder.define(OVERHEAT_LEVEL, 0);
     }
 
@@ -75,6 +70,9 @@ public abstract class EntityLocomotive extends EntityRollingStock {
     protected int inventorySize() {
         return 1;
     }
+
+    /** Immutable system definition for this locomotive type. */
+    public abstract LocomotiveDefinition getDefinition();
 
     public LocomotiveInventory getInventory() {
         return inventory;
@@ -112,33 +110,44 @@ public abstract class EntityLocomotive extends EntityRollingStock {
         float throttle = getThrottle();
 
         if (!isEngineOn() || throttle == 0.0F || !isFuelled()) {
-            setDeltaMovement(getDeltaMovement().scale(brake));
-            coolDownOverheat();
-            return;
+            setDeltaMovement(getDeltaMovement().scale(getBrakeFactor()));
+        } else {
+            float yaw = getYRot() * ((float) Math.PI / 180.0F);
+            Vec3 forward = new Vec3(Math.cos(yaw), 0.0D, Math.sin(yaw));
+            double direction = throttle > 0.0F ? 1.0D : -1.0D;
+            double force = getSpecAccel() * 0.01D * Math.abs(throttle) * direction;
+            Vec3 movement = getDeltaMovement().add(forward.scale(force));
+            double horizontalSpeed = Math.sqrt(movement.x * movement.x + movement.z * movement.z);
+            double maximumSpeed = getLocomotiveMaxSpeed();
+            if (horizontalSpeed > maximumSpeed) {
+                double scale = maximumSpeed / horizontalSpeed;
+                movement = new Vec3(movement.x * scale, movement.y, movement.z * scale);
+            }
+            setDeltaMovement(movement);
+
+            consumeFuel();
         }
 
-        float yaw = getYRot() * ((float) Math.PI / 180.0F);
-        Vec3 forward = new Vec3(Math.cos(yaw), 0.0D, Math.sin(yaw));
-        double direction = throttle > 0.0F ? 1.0D : -1.0D;
-        double force = accelerate * 0.01D * Math.abs(throttle) * direction;
-        Vec3 movement = getDeltaMovement().add(forward.scale(force));
-        double horizontalSpeed = Math.sqrt(movement.x * movement.x + movement.z * movement.z);
-        if (horizontalSpeed > getLocomotiveMaxSpeed()) {
-            double scale = getLocomotiveMaxSpeed() / horizontalSpeed;
-            movement = new Vec3(movement.x * scale, movement.y, movement.z * scale);
-        }
-        setDeltaMovement(movement);
-
-        consumeFuel();
         updateOverheat();
     }
 
-    /** Furnace-style stoking: pull the next coal from the firebox slot when empty. */
+    /** Stokes the firebox according to this locomotive's fuel-system definition. */
     private void pullFuelFromInventory() {
-        ItemStack fuelSlot = inventory.getItem(0);
-        if (!fuelSlot.isEmpty() && fuelSlot.is(ItemTags.COALS)) {
+        var fuelConfiguration = getDefinition().getFuelConfiguration();
+        ItemStack fuelSlot = inventory.getItem(fuelConfiguration.fuelSlot());
+        var fuelSystem = getDefinition().getFuelSystem();
+
+        if (!fuelSlot.isEmpty() && fuelSystem.acceptsFuel(fuelSlot)) {
+            // Read the fuel value before shrinking. A one-item stack becomes
+            // empty after shrink(), at which point a fuel registry correctly
+            // reports zero burn time.
+            int fuelAmount = fuelSystem.getFuelAmount(fuelSlot);
+            if (fuelAmount <= 0) {
+                return;
+            }
             fuelSlot.shrink(1);
-            addFuel(FUEL_PER_COAL);
+            inventory.setChanged();
+            addFuel(fuelAmount);
         }
     }
 
@@ -200,8 +209,53 @@ public abstract class EntityLocomotive extends EntityRollingStock {
         entityData.set(THROTTLE, throttle);
     }
 
+    /**
+     * Legacy Traincraft locomotion parameters.
+     *
+     * Each concrete locomotive overrides these values, while this shared
+     * EntityLocomotive class applies them to rail movement and braking.
+     */
+    public abstract double transportTopSpeed();
+
+    public abstract double transportMetricHorsePower();
+
+    public abstract double getSpecAccel();
+
+    public abstract double getSpecBrake();
+
+    /** Top speed after the legacy horsepower-versus-consist-load calculation. */
+    public double getTopSpeedKph() {
+        double pulledMass = getPulledMass();
+        if (pulledMass <= 0.0D) {
+            return transportTopSpeed();
+        }
+
+        double powerLoad = pulledMass / (transportMetricHorsePower() * 0.37D);
+        return powerLoad > 1.0D
+                ? transportTopSpeed() / powerLoad
+                : transportTopSpeed();
+    }
+
+    public double getMetricHorsepower() {
+        return transportMetricHorsePower();
+    }
+
+    public double getBrakeFactor() {
+        return getSpecBrake();
+    }
+
+    /**
+     * Coupling will replace this with the combined mass of linked rolling
+     * stock. Keeping it here makes the locomotion definition useful today
+     * without inventing a temporary coupling system.
+     */
+    protected double getPulledMass() {
+        return 0.0D;
+    }
+
     protected double getLocomotiveMaxSpeed() {
-        return 0.4D;
+        return getTopSpeedKph() / REFERENCE_TOP_SPEED_KPH
+                * REFERENCE_MAX_SPEED_BLOCKS_PER_TICK;
     }
 
     // --- Fuel & heat state -------------------------------------------------
@@ -214,8 +268,12 @@ public abstract class EntityLocomotive extends EntityRollingStock {
         return entityData.get(FUEL);
     }
 
+    public int getFuelCapacity() {
+        return getDefinition().getFuelConfiguration().fuelCapacity();
+    }
+
     public void addFuel(int ticks) {
-        setFuel(Math.min(MAX_FUEL_TICKS, getFuel() + ticks));
+        setFuel(Math.min(getFuelCapacity(), getFuel() + ticks));
     }
 
     private void setFuel(int fuel) {
@@ -228,7 +286,20 @@ public abstract class EntityLocomotive extends EntityRollingStock {
 
     /** Locomotives run hot by default; subclasses may opt out. */
     public boolean canOverheat() {
-        return true;
+        return getOverheatTime() > 0;
+    }
+
+    /** Legacy Traincraft heating scale supplied by each locomotive type. */
+    public abstract int getOverheatTime();
+
+    /** The legacy gauge reserves 30 points above the nominal heat scale. */
+    public int getOverheatMaximum() {
+        return getOverheatTime() + 30;
+    }
+
+    /** Normal operating heat, matching legacy Traincraft's midpoint. */
+    public int getAverageOverheat() {
+        return getOverheatMaximum() / 2;
     }
 
     public int getOverheatLevel() {
@@ -240,20 +311,69 @@ public abstract class EntityLocomotive extends EntityRollingStock {
         return false;
     }
 
-    private void updateOverheat() {
-        int level = getOverheatLevel();
-        level = lacksCoolant() ? level + 1 : level - 1;
-        entityData.set(OVERHEAT_LEVEL, Mth.clamp(level, 0, OVERHEAT_MAX));
+    /** Subclasses return true when their coolant level can cool an over-hot engine. */
+    protected boolean hasEffectiveCoolant() {
+        return false;
     }
 
-    private void coolDownOverheat() {
-        entityData.set(OVERHEAT_LEVEL, Math.max(0, getOverheatLevel() - 1));
+    private void updateOverheat() {
+        if (!canOverheat()) {
+            return;
+        }
+
+        int level = getOverheatLevel();
+        int normalHeat = getAverageOverheat();
+
+        // A fired locomotive warms gradually to its normal operating level.
+        if (isEngineOn() && isFuelled() && level < normalHeat && random.nextInt(7) == 0) {
+            level++;
+        }
+
+        // An unfuelled or switched-off locomotive cools down naturally.
+        if ((!isEngineOn() || !isFuelled()) && level > 0 && random.nextInt(10) == 0) {
+            level--;
+        }
+
+        // Above normal operating heat, the boiler dissipates heat slowly.
+        if (level > normalHeat && random.nextInt(30) == 0) {
+            level--;
+        }
+
+        // A well-filled steam boiler has the same additional cooling effect
+        // as the legacy steam implementation.
+        if (hasEffectiveCoolant() && level > normalHeat) {
+            level--;
+        }
+
+        // A fired dry boiler overheats rapidly.
+        if (lacksCoolant() && random.nextInt(10) == 0) {
+            level += 3;
+        }
+
+        entityData.set(OVERHEAT_LEVEL, Mth.clamp(level, 0, getOverheatMaximum()));
     }
 
     /** Human-readable operating state, shown on the HUD and in GUIs. */
     public String getState() {
-        if (canOverheat() && getOverheatLevel() >= OVERHEAT_TIME) {
-            return "Overheated";
+        if (canOverheat()) {
+            int heat = getOverheatLevel();
+            int normal = getAverageOverheat();
+            if (heat > normal + heatRange(24)) {
+                return "Broken";
+            }
+            if (heat > normal + heatRange(17)) {
+                return "Too hot";
+            }
+            if (heat > normal + heatRange(12)) {
+                return "Very hot";
+            }
+            if (heat >= normal - heatRange(4)) {
+                return "Hot";
+            }
+            if (heat >= normal - heatRange(17)) {
+                return "Warm";
+            }
+            return "Cold";
         }
         if (!isEngineOn()) {
             return "Off";
@@ -267,9 +387,13 @@ public abstract class EntityLocomotive extends EntityRollingStock {
         return "Stopped";
     }
 
+    private int heatRange(int gaugePixels) {
+        return getOverheatTime() * gaugePixels / 50;
+    }
+
     /** Fuel scaled to an arbitrary bar length for gauges. */
     public int getFuelDiv(int scale) {
-        return getFuel() * scale / MAX_FUEL_TICKS;
+        return getFuel() * scale / getFuelCapacity();
     }
 
     @Override
@@ -287,8 +411,8 @@ public abstract class EntityLocomotive extends EntityRollingStock {
         super.readAdditionalSaveData(tag);
         setEngineOn(!tag.contains("EngineOn") || tag.getBoolean("EngineOn"));
         setThrottle(tag.getFloat("Throttle"));
-        setFuel(tag.contains("Fuel") ? tag.getInt("Fuel") : MAX_FUEL_TICKS);
-        entityData.set(OVERHEAT_LEVEL, Mth.clamp(tag.getInt("Overheat"), 0, OVERHEAT_MAX));
+        setFuel(tag.contains("Fuel") ? tag.getInt("Fuel") : 0);
+        entityData.set(OVERHEAT_LEVEL, Mth.clamp(tag.getInt("Overheat"), 0, getOverheatMaximum()));
         if (tag.contains("Inventory")) {
             inventory.load(tag.getCompound("Inventory"), level().registryAccess());
         }
@@ -310,5 +434,16 @@ public abstract class EntityLocomotive extends EntityRollingStock {
                 (containerId, playerInventory, p) -> new LocomotiveMenu(containerId, playerInventory, this),
                 Component.translatable("container.traincraft.loco"));
         serverPlayer.openMenu(provider);
+    }
+
+    /** Drops every stored stack before vanilla drops the locomotive item. */
+    @Override
+    public void destroy(ServerLevel level, DamageSource damageSource) {
+        if (!inventoryDropped) {
+            Containers.dropContents(level, this, inventory);
+            inventory.clearContent();
+            inventoryDropped = true;
+        }
+        super.destroy(level, damageSource);
     }
 }

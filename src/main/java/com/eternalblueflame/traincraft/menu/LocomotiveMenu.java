@@ -1,10 +1,8 @@
 package com.eternalblueflame.traincraft.menu;
 
 import com.eternalblueflame.traincraft.TraincraftMenus;
-import com.eternalblueflame.traincraft.entity.EntityLocoSteam4_4_0;
 import com.eternalblueflame.traincraft.entity.EntityLocomotive;
 import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.tags.ItemTags;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Inventory;
@@ -119,11 +117,12 @@ public class LocomotiveMenu extends AbstractContainerMenu {
         /*
          * Fuel slot.
          */
-        addSlot(new Slot(inventory, 0, 8, 53) {
+        int fuelSlot = loco.getDefinition().getFuelConfiguration().fuelSlot();
+        addSlot(new Slot(inventory, fuelSlot, 8, 53) {
 
             @Override
             public boolean mayPlace(ItemStack stack) {
-                return stack.is(ItemTags.COALS);
+                return loco.getDefinition().getFuelSystem().acceptsFuel(stack);
             }
 
         });
@@ -131,9 +130,10 @@ public class LocomotiveMenu extends AbstractContainerMenu {
         /*
          * Steam locomotive water slot.
          */
-        if (loco instanceof EntityLocoSteam4_4_0) {
+        if (loco.getDefinition().getFuelSystem().requiresWater()) {
+            int waterSlot = loco.getDefinition().getFuelConfiguration().waterSlot();
 
-            addSlot(new Slot(inventory, 1, 32, 53) {
+            addSlot(new Slot(inventory, waterSlot, 32, 53) {
 
                 @Override
                 public boolean mayPlace(ItemStack stack) {
@@ -146,19 +146,18 @@ public class LocomotiveMenu extends AbstractContainerMenu {
         /*
          * Cargo slots.
          *
-         * The legacy Traincraft GUI supports three cargo rows.
-         * Each row is five slots wide in the standard locomotive panel.
+     * The current steam panel exposes a three-by-three cargo grid.
          *
          * The actual number of cargo slots is determined by the
          * locomotive inventory size.
          */
-        int cargoStart = loco instanceof EntityLocoSteam4_4_0 ? 2 : 1;
+        int cargoStart = loco.getDefinition().getFuelSystem().requiresWater() ? 2 : 1;
 
         int cargoIndex = cargoStart;
 
         for (int row = 0; row < 3; row++) {
 
-            for (int column = 0; column < 5; column++) {
+            for (int column = 0; column < 3; column++) {
 
                 if (cargoIndex >= trainSlotCount) {
                     return;
@@ -296,12 +295,14 @@ public class LocomotiveMenu extends AbstractContainerMenu {
             /*
              * Fuel.
              */
-            if (stack.is(ItemTags.COALS)) {
+            if (loco.getDefinition().getFuelSystem().acceptsFuel(stack)) {
+
+                int fuelSlot = loco.getDefinition().getFuelConfiguration().fuelSlot();
 
                 if (!moveItemStackTo(
                         stack,
-                        0,
-                        1,
+                        fuelSlot,
+                        fuelSlot + 1,
                         false
                 )) {
                     return ItemStack.EMPTY;
@@ -312,14 +313,15 @@ public class LocomotiveMenu extends AbstractContainerMenu {
              * Steam water.
              */
             else if (
-                    loco instanceof EntityLocoSteam4_4_0
+                    loco.getDefinition().getFuelSystem().requiresWater()
                     && stack.is(Items.WATER_BUCKET)
             ) {
 
+                int waterSlot = loco.getDefinition().getFuelConfiguration().waterSlot();
                 if (!moveItemStackTo(
                         stack,
-                        1,
-                        2,
+                        waterSlot,
+                        waterSlot + 1,
                         false
                 )) {
                     return ItemStack.EMPTY;
@@ -336,7 +338,7 @@ public class LocomotiveMenu extends AbstractContainerMenu {
             else {
 
                 int cargoStart =
-                        loco instanceof EntityLocoSteam4_4_0
+                        loco.getDefinition().getFuelSystem().requiresWater()
                                 ? 2
                                 : 1;
 

@@ -71,4 +71,5 @@ public final class LocomotiveDefinition {
     public FuelSystemConfiguration getFuelConfiguration() {
         return fuelConfiguration;
     }
+
 }

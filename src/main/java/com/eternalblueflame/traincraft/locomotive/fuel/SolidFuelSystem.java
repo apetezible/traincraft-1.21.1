@@ -8,9 +8,9 @@ import net.minecraft.world.item.ItemStack;
  *
  * Any item recognized by Minecraft's fuel registry is accepted.
  *
- * The system deliberately does not distinguish between different kinds
- * of solid fuel. Coal, charcoal, planks, slabs, sticks, kelp blocks,
- * etc. are all treated according to Minecraft's own fuel registry.
+ * The system accepts normal furnace fuels that are consumed as items.
+ * Container fuels (for example lava buckets) are deliberately excluded:
+ * a steam firebox must not destroy the container or its contents.
  *
  * Solid fuel locomotives currently require water.
  */
@@ -32,7 +32,8 @@ public final class SolidFuelSystem implements FuelSystemDefinition {
             return false;
         }
 
-        return FuelRegistry.INSTANCE.get(stack.getItem()) != null;
+        return !stack.getItem().hasCraftingRemainingItem()
+                && FuelRegistry.INSTANCE.get(stack.getItem()) != null;
     }
 
     @Override

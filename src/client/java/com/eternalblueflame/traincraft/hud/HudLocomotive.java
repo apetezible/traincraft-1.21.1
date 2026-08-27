@@ -86,7 +86,7 @@ public final class HudLocomotive implements HudRenderCallback {
 
     /** Steam-style vertical overheat column to the left of the water gauge. */
     private void renderOverheatBar(GuiGraphics graphics, int top, EntityLocomotive loco) {
-        int max = EntityLocomotive.OVERHEAT_TIME + 30;
+        int max = loco.getOverheatMaximum();
         int cover = scaleGauge(loco.getOverheatLevel(), max, 49);
         graphics.blit(STEAM_HUD_TEXTURE, 56, top + 17, 176, 169 + cover, 5, 49 - cover);
     }
