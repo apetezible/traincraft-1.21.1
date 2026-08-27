@@ -15,7 +15,6 @@ import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Containers;
 import net.minecraft.world.phys.Vec3;
 import com.eternalblueflame.traincraft.menu.LocomotiveMenu;
@@ -438,12 +437,12 @@ public abstract class EntityLocomotive extends EntityRollingStock {
 
     /** Drops every stored stack before vanilla drops the locomotive item. */
     @Override
-    public void destroy(ServerLevel level, DamageSource damageSource) {
-        if (!inventoryDropped) {
-            Containers.dropContents(level, this, inventory);
+    public void destroy(DamageSource damageSource) {
+        if (!level().isClientSide() && !inventoryDropped) {
+            Containers.dropContents(level(), this, inventory);
             inventory.clearContent();
             inventoryDropped = true;
         }
-        super.destroy(level, damageSource);
+        super.destroy(damageSource);
     }
 }
