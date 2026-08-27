@@ -2,9 +2,15 @@ package com.eternalblueflame.traincraft.entity;
 
 import com.eternalblueflame.traincraft.TraincraftItems;
 import com.eternalblueflame.traincraft.locomotive.LocomotiveDefinition;
+import com.eternalblueflame.traincraft.locomotive.effects.ParticleEmissionDefinition;
+import com.eternalblueflame.traincraft.locomotive.effects.ParticleProfile;
 import com.eternalblueflame.traincraft.locomotive.fuel.FuelSystemConfiguration;
 import com.eternalblueflame.traincraft.locomotive.fuel.SolidFuelSystem;
 import com.eternalblueflame.traincraft.locomotive.propulsion.SteamPropulsionDefinition;
+import com.eternalblueflame.traincraft.locomotive.sound.LocomotiveSoundProfile;
+import net.minecraft.resources.ResourceLocation;
+
+import java.util.List;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
@@ -20,7 +26,17 @@ public class EntityLocoSteam4_4_0 extends EntityLocomotive {
             "steam_4_4_0",
             SteamPropulsionDefinition.INSTANCE,
             new SolidFuelSystem(),
-            new FuelSystemConfiguration(20_000, 5_000, 0, 1)
+            new FuelSystemConfiguration(20_000, 5_000, 0, 1),
+            new ParticleProfile(List.of(
+                    new ParticleEmissionDefinition(
+                            ParticleEmissionDefinition.Type.LARGE_SMOKE,
+                            3, 1.0D, 2.6D, 0.0D)
+            )),
+            new LocomotiveSoundProfile(
+                    sound("american_steam_horn"), 0.8F,
+                    sound("bell"), 0.5F,
+                    sound("steam_run"), 0.2F, 0.001F,
+                    sound("steam_run"), 0.2F, 0.4F)
     );
 
     private static final EntityDataAccessor<Integer> WATER = SynchedEntityData.defineId(
@@ -39,6 +55,10 @@ public class EntityLocoSteam4_4_0 extends EntityLocomotive {
 
     public EntityLocoSteam4_4_0(EntityType<? extends EntityLocoSteam4_4_0> entityType, Level level) {
         super(entityType, level);
+    }
+
+    private static ResourceLocation sound(String path) {
+        return ResourceLocation.fromNamespaceAndPath("traincraft", path);
     }
 
     @Override

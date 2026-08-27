@@ -1,0 +1,14 @@
+{
+  "american_steam_horn": {
+    "category": "neutral",
+    "sounds": [{"name": "traincraft:american_steam_horn", "stream": true}]
+  },
+  "bell": {
+    "category": "neutral",
+    "sounds": [{"name": "traincraft:bell", "stream": false}]
+  },
+  "steam_run": {
+    "category": "neutral",
+    "sounds": [{"name": "traincraft:steam_run", "stream": false}]
+  }
+}

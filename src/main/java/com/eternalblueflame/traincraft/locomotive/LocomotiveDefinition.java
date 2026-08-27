@@ -2,7 +2,9 @@ package com.eternalblueflame.traincraft.locomotive;
 
 import com.eternalblueflame.traincraft.locomotive.fuel.FuelSystemConfiguration;
 import com.eternalblueflame.traincraft.locomotive.fuel.FuelSystemDefinition;
+import com.eternalblueflame.traincraft.locomotive.effects.ParticleProfile;
 import com.eternalblueflame.traincraft.locomotive.propulsion.PropulsionDefinition;
+import com.eternalblueflame.traincraft.locomotive.sound.LocomotiveSoundProfile;
 
 /**
  * Static definition of a locomotive.
@@ -20,11 +22,17 @@ public final class LocomotiveDefinition {
 
     private final FuelSystemConfiguration fuelConfiguration;
 
+    private final ParticleProfile particleProfile;
+
+    private final LocomotiveSoundProfile soundProfile;
+
     public LocomotiveDefinition(
             String id,
             PropulsionDefinition propulsion,
             FuelSystemDefinition fuelSystem,
-            FuelSystemConfiguration fuelConfiguration
+            FuelSystemConfiguration fuelConfiguration,
+            ParticleProfile particleProfile,
+            LocomotiveSoundProfile soundProfile
     ) {
         if (id == null || id.isBlank()) {
             throw new IllegalArgumentException(
@@ -50,10 +58,20 @@ public final class LocomotiveDefinition {
             );
         }
 
+        if (particleProfile == null) {
+            throw new IllegalArgumentException("Locomotive must have a particle profile.");
+        }
+
+        if (soundProfile == null) {
+            throw new IllegalArgumentException("Locomotive must have a sound profile.");
+        }
+
         this.id = id;
         this.propulsion = propulsion;
         this.fuelSystem = fuelSystem;
         this.fuelConfiguration = fuelConfiguration;
+        this.particleProfile = particleProfile;
+        this.soundProfile = soundProfile;
     }
 
     public String getId() {
@@ -70,6 +88,14 @@ public final class LocomotiveDefinition {
 
     public FuelSystemConfiguration getFuelConfiguration() {
         return fuelConfiguration;
+    }
+
+    public ParticleProfile getParticleProfile() {
+        return particleProfile;
+    }
+
+    public LocomotiveSoundProfile getSoundProfile() {
+        return soundProfile;
     }
 
 }

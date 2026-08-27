@@ -12,6 +12,7 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
@@ -290,6 +291,11 @@ public abstract class EntityLocomotive extends EntityRollingStock {
 
     /** Legacy Traincraft heating scale supplied by each locomotive type. */
     public abstract int getOverheatTime();
+
+    @Override
+    public Vec3 getPassengerRidingPosition(Entity passenger) {
+        return position().add(0.0D, 1.0D, 1.1D);
+    }
 
     /** The legacy gauge reserves 30 points above the nominal heat scale. */
     public int getOverheatMaximum() {

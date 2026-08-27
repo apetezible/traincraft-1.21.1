@@ -1,6 +1,7 @@
 package com.eternalblueflame.traincraft.render;
 
 import com.eternalblueflame.traincraft.entity.EntityLocoSteam4_4_0;
+import com.eternalblueflame.traincraft.client.effects.LocomotiveParticleController;
 import com.eternalblueflame.traincraft.model.ModelLocoSteam4_4_0;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
@@ -39,6 +40,8 @@ public final class RenderLocoSteam4_4_0 extends EntityRenderer<EntityLocoSteam4_
 
         VertexConsumer vertexConsumer = buffer.getBuffer(RenderType.entityCutoutNoCull(TEXTURE));
         model.render(poseStack, vertexConsumer, packedLight, OverlayTexture.NO_OVERLAY);
+
+        LocomotiveParticleController.emit(locomotive);
 
         poseStack.popPose();
     }

@@ -17,6 +17,7 @@ public class Traincraft implements ModInitializer {
         TraincraftEntities.register();
         TraincraftItems.register();
         TraincraftMenus.init();
+        TraincraftSounds.register();
 
         PayloadTypeRegistry.playC2S().register(
                 OpenLocoInventoryPayload.TYPE,

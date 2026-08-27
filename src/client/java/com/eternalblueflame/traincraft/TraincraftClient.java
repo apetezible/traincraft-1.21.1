@@ -1,6 +1,7 @@
 package com.eternalblueflame.traincraft;
 
 import com.eternalblueflame.traincraft.client.TraincraftKeybinds;
+import com.eternalblueflame.traincraft.client.sound.LocomotiveSoundController;
 import com.eternalblueflame.traincraft.client.screen.LocomotiveScreen;
 import com.eternalblueflame.traincraft.entity.EntityLocomotive;
 import com.eternalblueflame.traincraft.hud.HudLocomotive;
@@ -16,6 +17,7 @@ import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.minecraft.client.gui.screens.MenuScreens;
 
 public class TraincraftClient implements ClientModInitializer {
+    private final LocomotiveSoundController locomotiveSounds = new LocomotiveSoundController();
     @Override
     public void onInitializeClient() {
         HudRenderCallback.EVENT.register(new HudLocomotive());
@@ -30,6 +32,7 @@ public class TraincraftClient implements ClientModInitializer {
         MenuScreens.register(TraincraftMenus.LOCO, LocomotiveScreen::new);
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            locomotiveSounds.tick(client);
             while (TraincraftKeybinds.OPEN_INVENTORY.consumeClick()) {
                 if (client.player != null
                         && client.player.getVehicle() instanceof EntityLocomotive
